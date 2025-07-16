@@ -3,12 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34714.143
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D4B01176-7C82-46FE-8775-BA1DB79240B4}"
-	ProjectSection(SolutionItems) = preProject
-		..\appsettings.Development.json = ..\appsettings.Development.json
-		..\appsettings.json = ..\appsettings.json
-	EndProjectSection
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inventory.API", "Inventory.API\Inventory.API.csproj", "{55EA9082-5120-4B4A-8F61-5BD0B8A62608}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inventory.Application", "Inventory.Application\Inventory.Application.csproj", "{B717647E-68B5-4F48-8EC6-5859097F22E2}"
