@@ -1,5 +1,5 @@
-﻿using Inventory.Core.Entities;
-using Inventory.Core.Interfaces;
+﻿using Inventory.Application.Services;
+using Inventory.Core.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,11 +10,11 @@ namespace Inventory.API.Controllers
     [Authorize]
     public class ProductsController : ControllerBase
     {
-        private readonly IProductRepository _productRepository;
+        private readonly ProductService _productService;
 
-        public ProductsController(IProductRepository productRepository)
+        public ProductsController(ProductService productService)
         {
-            _productRepository = productRepository;
+            _productService = productService;
         }
 
         [AllowAnonymous]  // this is excempted for token validation
@@ -23,7 +23,7 @@ namespace Inventory.API.Controllers
         {
             try
             {
-                var products = await _productRepository.GetAllAsync();
+                var products = await _productService.GetAllProductsAsync();
                 return Ok(products);
             }
             catch (Exception ex)
@@ -44,7 +44,7 @@ namespace Inventory.API.Controllers
         [HttpGet("{id}", Name = "GetProductById")]
         public async Task<IActionResult> GetByIdAsync(int id)
         {
-            var product = await _productRepository.GetByIdAsync(id);
+            var product = await _productService.GetProductByIdAsync(id);
             if (product == null)
                 return NotFound();
 
@@ -54,7 +54,7 @@ namespace Inventory.API.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(Product product)
         {
-            var created = await _productRepository.AddAsync(product);
+            var created = await _productService.AddProductAsync(product);
             return CreatedAtRoute("GetProductById", new { id = created.Id }, created);
         }
 
@@ -64,24 +64,20 @@ namespace Inventory.API.Controllers
             if (id != product.Id)
                 return BadRequest();
 
-            var existing = await _productRepository.GetByIdAsync(id);
-            if (existing == null)
+            var updated = await _productService.UpdateProductAsync(product);
+            if (!updated)
                 return NotFound();
 
-            await _productRepository.UpdateAsync(product);
             return NoContent();
         }
+
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var product = await _productRepository.GetByIdAsync(id);
-            if (product == null)
+            var deleted = await _productService.DeleteProductAsync(id);
+            if (!deleted)
                 return NotFound();
-
-            var result = await _productRepository.DeleteAsync(id);
-            if (!result)
-                return StatusCode(500, "An error occurred while deleting the product.");
 
             return NoContent();
         }

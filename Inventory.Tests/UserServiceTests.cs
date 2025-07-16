@@ -1,21 +1,19 @@
-﻿using Inventory.Application.Services;
-using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
-using Inventory.Infrastructure.Data;
-using Inventory.Infrastructure.Repositories;
+﻿using Inventory.Application.DTOs;
+using Inventory.Application.Services;
 using Inventory.Core.Entities;
-using System.Text;
-using System.Security.Cryptography;
 using Inventory.Core.Interfaces;
+using FluentAssertions;
 using Moq;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.Extensions.Configuration;
 
 namespace Inventory.Tests
 {
     public class UserServiceTests
     {
-
         [Fact]
-        public void ChangePassword_WithCorrectOldPassword_UpdatesPassword()
+        public async Task ChangePasswordAsync_WithCorrectOldPassword_UpdatesPassword()
         {
             // Arrange
             var userId = 1;
@@ -33,66 +31,92 @@ namespace Inventory.Tests
             };
 
             var mockRepo = new Mock<IUserRepository>();
-            mockRepo.Setup(r => r.GetById(userId)).Returns(existingUser);
-            mockRepo.Setup(r => r.Update(It.IsAny<User>()));
+            mockRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(existingUser);
+            mockRepo.Setup(r => r.UpdateAsync(It.IsAny<User>())).Returns(Task.CompletedTask);
 
-            var service = new UserService(mockRepo.Object);
+            var mockConfig = new Mock<IConfiguration>();
+            var service = new UserService(mockRepo.Object, mockConfig.Object);
 
             // Act
-            var result = service.ChangePassword(userId, oldPassword, newPassword);
+            var result = await service.ChangePasswordAsync(userId, oldPassword, newPassword);
 
             // Assert
-            Assert.True(result);
-            Assert.NotEqual(oldHash, existingUser.PasswordHash);
-            mockRepo.Verify(r => r.Update(existingUser), Times.Once);
-        }
-
-        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
-        {
-            using var hmac = new System.Security.Cryptography.HMACSHA512();
-            passwordSalt = hmac.Key;
-            passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+            result.Should().BeTrue();
+            existingUser.PasswordHash.Should().NotEqual(oldHash);
+            mockRepo.Verify(r => r.UpdateAsync(existingUser), Times.Once);
         }
 
         [Fact]
         public async Task LoginAsync_ShouldReturnToken_WhenCredentialsAreValid()
         {
             // Arrange
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(databaseName: "TestDb")
-                .Options;
-
             var password = "Secret123";
-            byte[] passwordHash, passwordSalt;
-            using (var hmac = new HMACSHA512())
-            {
-                passwordSalt = hmac.Key;
-                passwordHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
-            }
+            CreatePasswordHash(password, out var passwordHash, out var passwordSalt);
 
             var user = new User
             {
                 Username = "testuser",
                 PasswordHash = passwordHash,
-                PasswordSalt = passwordSalt
+                PasswordSalt = passwordSalt,
+                Role = "User"
             };
 
-            using (var context = new AppDbContext(options))
-            {
-                context.Users.Add(user);
-                await context.SaveChangesAsync();
-            }
+            var mockRepo = new Mock<IUserRepository>();
+            mockRepo.Setup(r => r.GetByUsernameAsync("testuser")).ReturnsAsync(user);
 
-            using (var context = new AppDbContext(options))
-            {
-                var repo = new UserRepository(context);
+            var mockConfig = new Mock<IConfiguration>();
+            mockConfig.Setup(c => c["Jwt:Key"]).Returns("this_is_a_mocked_unit_test_key_that_is_long_enough_for_HmacSha512_signature_1234567890"); // test keys
 
-                // Act
-                var result = await repo.LoginAsync("testuser", password);
+            var service = new UserService(mockRepo.Object, mockConfig.Object);
 
-                // Assert
-                result.Should().Be("test-token-or-service-calls-for-now");
-            }
+            // Act
+            var result = await service.LoginAsync(new UserDto { Username = "testuser", Password = password });
+
+            // Assert
+            result.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task RegisterAsync_ShouldFail_IfUsernameAlreadyExists()
+        {
+            // Arrange
+            var mockRepo = new Mock<IUserRepository>();
+            mockRepo.Setup(r => r.UserExistsAsync("existinguser")).ReturnsAsync(true);
+
+            var mockConfig = new Mock<IConfiguration>();
+            var service = new UserService(mockRepo.Object, mockConfig.Object);
+
+            // Act
+            var result = await service.RegisterAsync(new UserDto { Username = "existinguser", Password = "pass" });
+
+            // Assert
+            result.Success.Should().BeFalse();
+            result.Message.Should().Be("Username already exists.");
+        }
+
+        [Fact]
+        public async Task RegisterAsync_ShouldSucceed_WhenUserIsNew()
+        {
+            // Arrange
+            var mockRepo = new Mock<IUserRepository>();
+            mockRepo.Setup(r => r.UserExistsAsync("newuser")).ReturnsAsync(false);
+            mockRepo.Setup(r => r.AddAsync(It.IsAny<User>())).Returns(Task.CompletedTask);
+
+            var mockConfig = new Mock<IConfiguration>();
+            var service = new UserService(mockRepo.Object, mockConfig.Object);
+
+            // Act
+            var result = await service.RegisterAsync(new UserDto { Username = "newuser", Password = "pass" });
+
+            // Assert
+            result.Success.Should().BeTrue();
+        }
+
+        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
+        {
+            using var hmac = new HMACSHA512();
+            passwordSalt = hmac.Key;
+            passwordHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
         }
     }
 }
