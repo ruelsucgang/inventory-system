@@ -13,6 +13,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
+// docker
+if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+{
+    Console.WriteLine("Running inside Docker – binding to http://0.0.0.0:80");
+    builder.WebHost.UseUrls("http://0.0.0.0:80");
+}
+//c:/inv
+//docker build -t inventory-api -f Inventory.API/Dockerfile .
+//docker run -d -p 5000:80--name inventory-api-container inventory-api
+//docker run -d -p 6379:6379--name redis redis
+
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
